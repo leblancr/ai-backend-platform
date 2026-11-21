@@ -2,7 +2,7 @@ from io import BytesIO
 from pathlib import Path
 
 from docx import Document as WordDocument
-from fastapi import APIRouter, Depends, File, HTTPException, UploadFile
+from fastapi import APIRouter, Depends, File, HTTPException, Query, UploadFile
 from pypdf import PdfReader
 from sqlalchemy import delete, select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -14,11 +14,124 @@ from app.models.document_chunk import DocumentChunk
 from app.services.chunking import chunk_text
 from app.core.config import settings
 from app.services.embeddings import generate_embeddings
+from app.core.config import settings
+from app.services.embeddings import generate_embedding
+from app.services.llm import generate_answer
 
 router = APIRouter(prefix="/documents", tags=["Documents"])
 
 MAX_FILE_SIZE = 10 * 1024 * 1024
 ALLOWED_EXTENSIONS = {".pdf", ".txt", ".md", ".docx"}
+
+
+@router.get("/{document_id}/search")
+async def search_document(
+        document_id: int,
+        q: str = Query(min_length=1),
+        limit: int = Query(default=5, ge=1, le=20),
+        db: AsyncSession = Depends(get_db),
+):
+    document = await db.get(Document, document_id)
+
+    if document is None:
+        raise HTTPException(404, "Document not found")
+
+    query_embedding = await generate_embedding(q)
+
+    distance = DocumentChunk.embedding.cosine_distance(
+        query_embedding
+    )
+
+    result = await db.execute(
+        select(DocumentChunk, distance.label("distance"))
+        .where(
+            DocumentChunk.document_id == document_id,
+            DocumentChunk.embedding.is_not(None),
+            DocumentChunk.embedding_model == settings.embedding_model,
+        )
+        .order_by(distance)
+        .limit(limit)
+    )
+
+    matches = result.all()
+
+    if not matches:
+        raise HTTPException(
+            400,
+            "Document has no embeddings. Embed it first.",
+        )
+
+    return {
+        "document_id": document_id,
+        "question": q,
+        "matches": [
+            {
+                "chunk_id": chunk.id,
+                "chunk_index": chunk.chunk_index,
+                "similarity": round(1 - float(distance), 4),
+                "content": chunk.content,
+            }
+            for chunk, distance in matches
+        ],
+    }
+
+
+@router.get("/{document_id}/ask")
+async def ask_document(
+        document_id: int,
+        q: str = Query(min_length=1),
+        db: AsyncSession = Depends(get_db),
+):
+    document = await db.get(Document, document_id)
+
+    if document is None:
+        raise HTTPException(404, "Document not found")
+
+    query_embedding = await generate_embedding(q)
+
+    distance = DocumentChunk.embedding.cosine_distance(
+        query_embedding
+    )
+
+    result = await db.execute(
+        select(DocumentChunk, distance.label("distance"))
+        .where(
+            DocumentChunk.document_id == document_id,
+            DocumentChunk.embedding.is_not(None),
+            DocumentChunk.embedding_model == settings.embedding_model,
+        )
+        .order_by(distance)
+        .limit(5)
+    )
+
+    matches = result.all()
+
+    if not matches:
+        raise HTTPException(
+            400,
+            "Document has no embeddings. Embed it first.",
+        )
+
+    context = "\n\n".join(
+        f"[Chunk ID: {chunk.id}]\n{chunk.content}"
+        for chunk, _ in matches
+    )
+
+    answer = await generate_answer(q, context)
+
+    return {
+        "document_id": document_id,
+        "question": q,
+        "answer": answer,
+        "sources": [
+            {
+                "chunk_id": chunk.id,
+                "chunk_index": chunk.chunk_index,
+                "similarity": round(1 - float(distance), 4),
+            }
+            for chunk, distance in matches
+        ],
+    }
 
 
 @router.post("/{document_id}/embed")
