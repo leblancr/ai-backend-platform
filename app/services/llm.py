@@ -11,18 +11,18 @@ async def generate_answer(
 
     prompt = f"""Answer the question using only the supplied document passages.
 
-If the passages do not contain enough information to answer, say:
-"I don't have enough information in the provided documents."
-
-Do not invent facts or use outside knowledge.
-When making claims, cite the relevant chunk using its [Chunk ID].
-
-DOCUMENT PASSAGES:
-{context}
-
-QUESTION:
-{question}
-"""
+    If the passages do not contain enough information to answer, say:
+    "I don't have enough information in the provided documents."
+    
+    Do not invent facts or use outside knowledge.
+    When making claims, cite the relevant chunk using its [Chunk ID].
+    
+    DOCUMENT PASSAGES:
+    {context}
+    
+    QUESTION:
+    {question}
+    """
 
     async with httpx.AsyncClient(timeout=180.0) as client:
         response = await client.post(

@@ -4,7 +4,7 @@ from pathlib import Path
 from docx import Document as WordDocument
 from fastapi import APIRouter, Depends, File, HTTPException, Query, UploadFile
 from pypdf import PdfReader
-from sqlalchemy import delete, select
+from sqlalchemy import delete, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.session import get_db
@@ -22,6 +22,43 @@ router = APIRouter(prefix="/documents", tags=["Documents"])
 
 MAX_FILE_SIZE = 10 * 1024 * 1024
 ALLOWED_EXTENSIONS = {".pdf", ".txt", ".md", ".docx"}
+
+
+@router.get("/")
+async def list_documents(
+        db: AsyncSession = Depends(get_db),
+):
+    result = await db.execute(
+        select(
+            Document,
+            func.count(DocumentChunk.id).label("total_chunks"),
+            func.count(
+                DocumentChunk.embedding
+            ).label("embedded_chunks"),
+        )
+        .outerjoin(
+            DocumentChunk,
+            Document.id == DocumentChunk.document_id,
+        )
+        .group_by(Document.id)
+        .order_by(Document.id)
+    )
+
+    return [
+        {
+            "id": document.id,
+            "filename": document.filename,
+            "content_type": document.content_type,
+            "created_at": document.created_at,
+            "total_chunks": total_chunks,
+            "embedded_chunks": embedded_chunks,
+            "embedded": (
+                    total_chunks > 0
+                    and total_chunks == embedded_chunks
+            ),
+        }
+        for document, total_chunks, embedded_chunks in result.all()
+    ]
 
 
 @router.get("/{document_id}/search")
@@ -117,7 +154,7 @@ async def ask_document(
         for chunk, _ in matches
     )
 
-    answer = await generate_answer(q, context)
+    answer = await generate_answer(q, context)  # llm.py
 
     return {
         "document_id": document_id,
@@ -131,7 +168,7 @@ async def ask_document(
             }
             for chunk, distance in matches
         ],
-    }
+    }  # Returns answer to React
 
 
 @router.post("/{document_id}/embed")
