@@ -315,3 +315,13 @@ async def get_document_chunks(
         }
         for chunk in chunks
     ]
+
+from app.services.agent import run_agent
+
+
+@router.get("/assistant")
+async def document_assistant(
+        q: str = Query(min_length=1),
+        db: AsyncSession = Depends(get_db),
+):
+    return await run_agent(q, db)
