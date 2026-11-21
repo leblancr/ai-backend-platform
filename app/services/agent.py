@@ -10,7 +10,7 @@ from app.services.tools import TOOL_SCHEMAS, run_tool
 MAX_STEPS = 5
 
 SYSTEM_PROMPT = """You answer questions about the user's uploaded documents.
-Use the tools to look things up. Never guess a document ID: call list_documents first when you need one.
+ALWAYS call a tool before answering. Never answer from memory and never ask the user for more context: look it up with the tools. Never guess a document ID: call list_documents first when you need one.
 Answer only from tool results and cite chunk IDs like [Chunk ID: 12] only for passages returned by search_document, never when listing documents.
 If the tools do not return enough information, say:
 "I don't have enough information in the provided documents."
