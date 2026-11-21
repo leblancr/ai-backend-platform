@@ -362,3 +362,22 @@ async def document_assistant(
         db: AsyncSession = Depends(get_db),
 ):
     return await run_agent(q, db)
+
+
+@router.delete("/{document_id}", status_code=204)
+async def delete_document(
+        document_id: int,
+        db: AsyncSession = Depends(get_db),
+):
+    document = await db.get(Document, document_id)
+
+    if document is None:
+        raise HTTPException(404, "Document not found")
+
+    await db.execute(
+        delete(DocumentChunk).where(
+            DocumentChunk.document_id == document_id
+        )
+    )
+    await db.delete(document)
+    await db.commit()

@@ -25,6 +25,7 @@ async def run_agent(question: str, db: AsyncSession) -> dict:
         {"role": "user", "content": question},
     ]
     tool_log = []
+    nudged = False
 
     async with httpx.AsyncClient(timeout=180.0) as client:
         for _ in range(MAX_STEPS):
@@ -44,6 +45,17 @@ async def run_agent(question: str, db: AsyncSession) -> dict:
             messages.append(message)
 
             tool_calls = message.get("tool_calls")
+
+            if not tool_calls and not tool_log and not nudged:
+                nudged = True
+                messages.append(
+                    {
+                        "role": "user",
+                        "content": "You must call a tool before answering. "
+                        "Call list_documents or search_document now.",
+                    }
+                )
+                continue
 
             if not tool_calls:
                 return {
