@@ -1,3 +1,4 @@
+import re
 import json
 
 import httpx
@@ -10,7 +11,7 @@ MAX_STEPS = 5
 
 SYSTEM_PROMPT = """You answer questions about the user's uploaded documents.
 Use the tools to look things up. Never guess a document ID: call list_documents first when you need one.
-Answer only from tool results and cite chunk IDs like [Chunk ID: 12].
+Answer only from tool results and cite chunk IDs like [Chunk ID: 12] only for passages returned by search_document, never when listing documents.
 If the tools do not return enough information, say:
 "I don't have enough information in the provided documents."
 """
@@ -47,7 +48,7 @@ async def run_agent(question: str, db: AsyncSession) -> dict:
             if not tool_calls:
                 return {
                     "question": question,
-                    "answer": (message.get("content") or "").strip(),
+                    "answer": clean_answer((message.get("content") or "").strip(), tool_log),
                     "tool_calls": tool_log,
                 }
 
@@ -75,3 +76,10 @@ async def run_agent(question: str, db: AsyncSession) -> dict:
         "answer": "I could not finish within the allowed number of steps.",
         "tool_calls": tool_log,
     }
+
+
+def clean_answer(answer: str, tool_log: list[dict]) -> str:
+    if any(call["tool"] == "search_document" for call in tool_log):
+        return answer
+
+    return re.sub(r"\s*\[Chunk ID:\s*\d+\]", "", answer)
