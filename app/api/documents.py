@@ -17,6 +17,7 @@ from app.services.embeddings import generate_embeddings
 from app.core.config import settings
 from app.services.embeddings import generate_embedding
 from app.services.llm import generate_answer
+from app.services.retrieval import retrieve
 
 router = APIRouter(prefix="/documents", tags=["Documents"])
 
@@ -124,24 +125,7 @@ async def ask_document(
     if document is None:
         raise HTTPException(404, "Document not found")
 
-    query_embedding = await generate_embedding(q)
-
-    distance = DocumentChunk.embedding.cosine_distance(
-        query_embedding
-    )
-
-    result = await db.execute(
-        select(DocumentChunk, distance.label("distance"))
-        .where(
-            DocumentChunk.document_id == document_id,
-            DocumentChunk.embedding.is_not(None),
-            DocumentChunk.embedding_model == settings.embedding_model,
-        )
-        .order_by(distance)
-        .limit(5)
-    )
-
-    matches = result.all()
+    matches = await retrieve(db, document_id, q)
 
     if not matches:
         raise HTTPException(

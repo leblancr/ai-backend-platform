@@ -5,6 +5,7 @@ from app.core.config import settings
 from app.models.document import Document
 from app.models.document_chunk import DocumentChunk
 from app.services.embeddings import generate_embedding
+from app.services.retrieval import retrieve
 
 TOOL_SCHEMAS = [
     {
@@ -69,21 +70,7 @@ async def search_document(
     if document is None:
         return {"error": f"Document {document_id} not found"}
 
-    embedding = await generate_embedding(query)
-    distance = DocumentChunk.embedding.cosine_distance(embedding)
-
-    result = await db.execute(
-        select(DocumentChunk, distance.label("distance"))
-        .where(
-            DocumentChunk.document_id == document_id,
-            DocumentChunk.embedding.is_not(None),
-            DocumentChunk.embedding_model == settings.embedding_model,
-        )
-        .order_by(distance)
-        .limit(limit)
-    )
-
-    matches = result.all()
+    matches = await retrieve(db, document_id, query)
 
     if not matches:
         return {"error": "Document has no embeddings. Embed it first."}
