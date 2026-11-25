@@ -10,13 +10,12 @@ from app.core.config import settings
 from app.services.document_extraction import extract_document_text
 from app.services.document_db_operations import (
     delete_document as delete_document_record,
-    embed_document as embed_document_chunks,
     get_document_chunks,
     list_documents as fetch_documents,
     reprocess_document as rebuild_document_chunks,
     save_document,
-    search_document as search_document_chunks,
 )
+from app.services.document_embedding import embed_document as embed_document_chunks
 from app.services.llm import generate_answer
 from app.services.retrieval import retrieve
 from app.services.agent import run_agent
@@ -78,7 +77,9 @@ async def search_document(
     if document is None:
         raise HTTPException(404, "Document not found")
 
-    matches = await search_document_chunks(db, document_id, q, limit)
+    matches = await retrieve(
+        db, document_id, q, vector_limit=limit, keyword_limit=0
+    )
     if not matches:
         raise HTTPException(400, "Document has no embeddings. Embed it first.")
 

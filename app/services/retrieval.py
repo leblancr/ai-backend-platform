@@ -15,6 +15,7 @@ async def retrieve(
     vector_limit: int = 4,
     keyword_limit: int = 3,
 ):
+    """Find relevant chunks using vector similarity and optional keyword search."""
     embedding = await generate_embedding(question)
     distance = DocumentChunk.embedding.cosine_distance(embedding)
 
@@ -33,33 +34,35 @@ async def retrieve(
         )
     ).all()
 
-    english = literal_column("'english'")
-    simple = literal_column("'simple'")
+    keyword_rows = []
+    if keyword_limit > 0:
+        english = literal_column("'english'")
+        simple = literal_column("'simple'")
 
-    match = func.to_tsvector(english, DocumentChunk.content).op("@@")(
-        func.plainto_tsquery(english, question)
-    )
-
-    numbers = re.findall(r"\b\d{2,}\b", question)
-    if numbers:
-        number_match = and_(
-            *[
-                func.to_tsvector(simple, DocumentChunk.content).op("@@")(
-                    func.plainto_tsquery(simple, n)
-                )
-                for n in numbers
-            ]
+        match = func.to_tsvector(english, DocumentChunk.content).op("@@")(
+            func.plainto_tsquery(english, question)
         )
-        match = or_(match, number_match)
 
-    keyword_rows = (
-        await db.execute(
-            select(DocumentChunk, distance.label("distance"))
-            .where(*base, match)
-            .order_by(distance)
-            .limit(keyword_limit)
-        )
-    ).all()
+        numbers = re.findall(r"\b\d{2,}\b", question)
+        if numbers:
+            number_match = and_(
+                *[
+                    func.to_tsvector(simple, DocumentChunk.content).op("@@")(
+                        func.plainto_tsquery(simple, number)
+                    )
+                    for number in numbers
+                ]
+            )
+            match = or_(match, number_match)
+
+        keyword_rows = (
+            await db.execute(
+                select(DocumentChunk, distance.label("distance"))
+                .where(*base, match)
+                .order_by(distance)
+                .limit(keyword_limit)
+            )
+        ).all()
 
     merged = []
     seen = set()
