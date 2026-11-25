@@ -4,3 +4,6 @@ __pycache__/
 *.py[cod]
 .pytest_cache/
 .idea/
+
+# Local project notes
+NOTES.md
