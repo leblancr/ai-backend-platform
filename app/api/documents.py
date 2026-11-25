@@ -194,7 +194,18 @@ async def document_assistant(
     q: str = Query(min_length=1),
     db: AsyncSession = Depends(get_db),
 ):
-    return await run_agent(q, db)
+    try:
+        return await run_agent(q, db)
+    except Exception as exc:
+        response = getattr(exc, "response", None)
+        detail = f"{type(exc).__name__}: {exc}"
+        if response is not None:
+            detail += f" | {response.text[:500]}"
+        if response is not None and response.status_code == 429:
+            raise HTTPException(
+                429, "The free demo model is busy. Try again in a few seconds."
+            )
+        raise HTTPException(502, detail)
 
 
 @router.delete("/{document_id}", status_code=204)
