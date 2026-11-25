@@ -1,0 +1,14 @@
+[Unit]
+Description=AI Backend Platform
+After=network.target postgresql.service
+
+[Service]
+Type=simple
+User=ilya
+WorkingDirectory=/home/ilya/ai-backend-platform
+ExecStart=/home/ilya/ai-backend-platform/.venv/bin/uvicorn main:app --host 127.0.0.1 --port 8000
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target
