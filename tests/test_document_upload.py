@@ -89,6 +89,8 @@ def test_successfully_uploads_text_document(client, monkeypatch):
     save_mock = AsyncMock(return_value=saved_document)
 
     monkeypatch.setattr(documents_api, "save_document", save_mock)
+    embed_mock = AsyncMock(return_value=[object()])
+    monkeypatch.setattr(documents_api, "embed_document_chunks", embed_mock)
 
     response = client.post(
         "/documents/upload",
@@ -107,3 +109,5 @@ def test_successfully_uploads_text_document(client, monkeypatch):
         "text/plain",
         "Hello from the test.",
     )
+    embed_mock.assert_awaited_once()
+    assert embed_mock.await_args.args[1] == 42

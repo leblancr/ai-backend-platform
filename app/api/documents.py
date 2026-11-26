@@ -1,3 +1,4 @@
+import logging
 from pathlib import Path
 
 from fastapi import APIRouter, Depends, File, HTTPException, Query, UploadFile
@@ -21,6 +22,7 @@ from app.services.retrieval import retrieve
 from app.services.agent import run_agent
 
 router = APIRouter(prefix="/documents", tags=["Documents"])
+logger = logging.getLogger(__name__)
 
 MAX_FILE_SIZE = 10 * 1024 * 1024
 ALLOWED_EXTENSIONS = {".pdf", ".txt", ".md", ".docx"}
@@ -161,12 +163,23 @@ async def upload_document(
     if not content.strip():
         raise HTTPException(400, "No extractable text found in document")
 
-    return await save_document(
+    document = await save_document(
         db,
         filename,
         file.content_type or "application/octet-stream",
         content,
     )
+
+    try:
+        await embed_document_chunks(db, document.id)
+    except Exception:
+        logger.exception(
+            "Automatic embedding failed for document %s (%s)",
+            document.id,
+            filename,
+        )
+
+    return document
 
 
 @router.get("/{document_id}/chunks")
