@@ -5,7 +5,7 @@ import httpx
 from app.core.config import settings
 from app.services.groq_retry import post_with_retry
 
-PROVIDER = os.getenv("LLM_PROVIDER", "ollama")
+PROVIDER = settings.llm_provider
 GROQ_URL = "https://api.groq.com/openai/v1/chat/completions"
 GROQ_MODEL = os.getenv("GROQ_MODEL", "openai/gpt-oss-120b")
 
@@ -31,7 +31,7 @@ QUESTION:
 
     async with httpx.AsyncClient(timeout=180.0) as client:
         if PROVIDER == "groq":
-            api_key = os.getenv("GROQ_API_KEY")
+            api_key = settings.groq_api_key
 
             if not api_key:
                 raise RuntimeError("GROQ_API_KEY is not set")
